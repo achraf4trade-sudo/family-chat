@@ -52,14 +52,7 @@ export default function FamilyChat() {
   const isTablet = activeUser && DEVICE_PRESETS[activeUser].device === "tablet";
 
   // Filter messages: "all" = group, or show only messages where to===me or sender===me (for DMs) + group messages
-  const visibleMessages = messages.filter(m => {
-    if (filter === "all") return !m.to; // group only
-    if (filter === "dm") {
-      // show DMs involving activeUser
-      return m.to !== null && (m.to === activeUser || m.sender === activeUser);
-    }
-    return true;
-  });
+
 
   // For the main view, show group + DMs addressed to activeUser highlighted
   const allVisible = messages.filter(m => {
@@ -326,4 +319,4 @@ export default function FamilyChat() {
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#ddd;border-radius:4px}`}</style>
     </div>
   );
-}
+}npm start
