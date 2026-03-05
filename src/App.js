@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { db } from "./firebase";
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, doc } from "firebase/firestore";
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, doc, setDoc } from "firebase/firestore";
 
 const USERS = [
   { id: "achraf", name: "Achraf", role: "Dad",         emoji: "👨", color: "#3B82F6", bg: "#eff6ff" },
@@ -36,31 +36,55 @@ const MATH_QS = [
 ];
 
 function TicTacToe({ activeUser, onClose }) {
-  const [board, setBoard] = useState(Array(9).fill(null));
+  const [gameState, setGameState] = useState(null);
   const [xUser, setXUser] = useState(null);
   const [oUser, setOUser] = useState(null);
-  const [turn, setTurn] = useState("X");
-  const [winner, setWinner] = useState(null);
   const [setup, setSetup] = useState(true);
+  const gameRef = useRef(null);
+
   const checkWinner = b => {
     const lines=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
     for(var l of lines) if(b[l[0]]&&b[l[0]]===b[l[1]]&&b[l[0]]===b[l[2]]) return b[l[0]];
     if(b.every(Boolean)) return "Draw";
     return null;
   };
-  const click = i => {
-    if(board[i]||winner) return;
-    if(turn==="X"&&activeUser!==xUser) return;
-    if(turn==="O"&&activeUser!==oUser) return;
-    const nb=[...board]; nb[i]=turn;
-    const w=checkWinner(nb);
-    setBoard(nb); setWinner(w);
-    if(!w) setTurn(turn==="X"?"O":"X");
+
+  // Listen to Firebase game state
+  useEffect(()=>{
+    if(setup) return;
+    gameRef.current = doc(db,"games","tictactoe");
+    var unsub = onSnapshot(gameRef.current, snap=>{
+      if(snap.exists()) setGameState(snap.data());
+    });
+    return ()=>unsub();
+  },[setup]);
+
+  const startGame = async () => {
+    var initial = { board:Array(9).fill(null), turn:"X", xUser, oUser, winner:null };
+    await setDoc(doc(db,"games","tictactoe"), initial);
+    setSetup(false);
   };
-  const xu=USERS.find(u=>u.id===xUser), ou=USERS.find(u=>u.id===oUser);
+
+  const click = async i => {
+    if(!gameState||gameState.board[i]||gameState.winner) return;
+    if(gameState.turn==="X"&&activeUser!==gameState.xUser) return;
+    if(gameState.turn==="O"&&activeUser!==gameState.oUser) return;
+    var nb=[...gameState.board]; nb[i]=gameState.turn;
+    var w=checkWinner(nb);
+    await updateDoc(doc(db,"games","tictactoe"),{ board:nb, winner:w||null, turn:gameState.turn==="X"?"O":"X" });
+  };
+
+  const restart = async () => {
+    await updateDoc(doc(db,"games","tictactoe"),{ board:Array(9).fill(null), winner:null, turn:"X" });
+  };
+
+  const xu = USERS.find(u=>u.id===(gameState?.xUser||xUser));
+  const ou = USERS.find(u=>u.id===(gameState?.oUser||oUser));
+
   if(setup) return (
     <div style={{padding:20,fontFamily:"'Nunito',sans-serif"}}>
       <div style={{fontSize:24,fontWeight:900,marginBottom:16,textAlign:"center"}}>🎯 Tic Tac Toe</div>
+      <div style={{background:"#eff6ff",borderRadius:16,padding:"10px 14px",marginBottom:16,fontSize:12,fontWeight:700,color:"#3B82F6",textAlign:"center"}}>🌐 Real-time multiplayer — play on different devices!</div>
       <div style={{marginBottom:12,fontWeight:800,color:"#555"}}>Who plays X?</div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
         {USERS.map(u=><button key={u.id} onClick={()=>setXUser(u.id)} style={{padding:"8px 14px",borderRadius:20,border:"2px solid "+(xUser===u.id?u.color:"#ddd"),background:xUser===u.id?u.color+"22":"white",fontWeight:800,cursor:"pointer",fontFamily:"inherit",color:xUser===u.id?u.color:"#888"}}>{u.emoji} {u.name}</button>)}
@@ -69,29 +93,40 @@ function TicTacToe({ activeUser, onClose }) {
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:24}}>
         {USERS.filter(u=>u.id!==xUser).map(u=><button key={u.id} onClick={()=>setOUser(u.id)} style={{padding:"8px 14px",borderRadius:20,border:"2px solid "+(oUser===u.id?u.color:"#ddd"),background:oUser===u.id?u.color+"22":"white",fontWeight:800,cursor:"pointer",fontFamily:"inherit",color:oUser===u.id?u.color:"#888"}}>{u.emoji} {u.name}</button>)}
       </div>
-      <button disabled={!xUser||!oUser} onClick={()=>setSetup(false)} style={{width:"100%",padding:"12px",borderRadius:20,background:xUser&&oUser?"#3B82F6":"#ddd",color:"white",border:"none",fontWeight:900,fontSize:16,cursor:xUser&&oUser?"pointer":"default",fontFamily:"inherit"}}>Start Game 🎯</button>
+      <button disabled={!xUser||!oUser} onClick={startGame} style={{width:"100%",padding:"12px",borderRadius:20,background:xUser&&oUser?"#3B82F6":"#ddd",color:"white",border:"none",fontWeight:900,fontSize:16,cursor:xUser&&oUser?"pointer":"default",fontFamily:"inherit"}}>Start Game 🎯</button>
       <button onClick={onClose} style={{width:"100%",padding:"10px",borderRadius:20,background:"none",border:"2px solid #ddd",color:"#888",fontWeight:800,fontSize:14,cursor:"pointer",fontFamily:"inherit",marginTop:8}}>Cancel</button>
     </div>
   );
+
+  if(!gameState) return <div style={{padding:40,textAlign:"center",color:"#aaa",fontWeight:700}}>Loading game... ⏳</div>;
+
+  var myTurn = (gameState.turn==="X"&&activeUser===gameState.xUser)||(gameState.turn==="O"&&activeUser===gameState.oUser);
+
   return (
     <div style={{padding:20,fontFamily:"'Nunito',sans-serif",textAlign:"center"}}>
       <div style={{fontSize:22,fontWeight:900,marginBottom:8}}>🎯 Tic Tac Toe</div>
-      <div style={{fontSize:13,fontWeight:800,marginBottom:16,color:"#888"}}>
+      <div style={{fontSize:13,fontWeight:800,marginBottom:12,color:"#888"}}>
         {xu&&<span style={{color:xu.color}}>{xu.emoji} {xu.name} = X</span>} &nbsp;vs&nbsp; {ou&&<span style={{color:ou.color}}>{ou.emoji} {ou.name} = O</span>}
       </div>
-      {!winner&&<div style={{fontSize:14,fontWeight:800,marginBottom:12,color:turn==="X"?xu?.color:ou?.color}}>
-        {turn==="X"?xu?.emoji+" "+xu?.name:ou?.emoji+" "+ou?.name}'s turn ({turn})
-        {activeUser!==(turn==="X"?xUser:oUser)&&<span style={{color:"#aaa"}}> — waiting...</span>}
-      </div>}
-      {winner&&<div style={{fontSize:18,fontWeight:900,marginBottom:12,color:winner==="Draw"?"#888":winner==="X"?xu?.color:ou?.color}}>
-        {winner==="Draw"?"🤝 Draw!":`🏆 ${winner==="X"?xu?.name:ou?.name} wins!`}
-      </div>}
+      {!gameState.winner&&(
+        <div style={{fontSize:14,fontWeight:800,marginBottom:12,padding:"6px 16px",borderRadius:20,display:"inline-block",background:myTurn?(gameState.turn==="X"?xu?.color:ou?.color)+"22":"#f5f5f5",color:myTurn?(gameState.turn==="X"?xu?.color:ou?.color):"#aaa"}}>
+          {myTurn?"🟢 Your turn!":"⏳ "+(gameState.turn==="X"?xu?.name:ou?.name)+"'s turn..."}
+        </div>
+      )}
+      {gameState.winner&&(
+        <div style={{fontSize:18,fontWeight:900,marginBottom:12,color:gameState.winner==="Draw"?"#888":gameState.winner==="X"?xu?.color:ou?.color}}>
+          {gameState.winner==="Draw"?"🤝 Draw!":`🏆 ${gameState.winner==="X"?xu?.name:ou?.name} wins!`}
+        </div>
+      )}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,maxWidth:240,margin:"0 auto 16px"}}>
-        {board.map((cell,i)=>(
-          <button key={i} onClick={()=>click(i)} style={{height:72,borderRadius:16,border:"2px solid #eee",background:cell?"white":"#f8f8f8",fontSize:28,fontWeight:900,cursor:"pointer",color:cell==="X"?xu?.color:ou?.color,boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>{cell}</button>
+        {gameState.board.map((cell,i)=>(
+          <button key={i} onClick={()=>click(i)}
+            style={{height:72,borderRadius:16,border:"2px solid #eee",background:cell?"white":"#f8f8f8",fontSize:28,fontWeight:900,cursor:myTurn&&!cell&&!gameState.winner?"pointer":"default",color:cell==="X"?xu?.color:ou?.color,boxShadow:"0 2px 8px rgba(0,0,0,0.08)",opacity:!myTurn&&!cell?0.6:1}}>
+            {cell}
+          </button>
         ))}
       </div>
-      <button onClick={()=>{setBoard(Array(9).fill(null));setWinner(null);setTurn("X");}} style={{padding:"8px 20px",borderRadius:20,background:"#3B82F6",color:"white",border:"none",fontWeight:800,cursor:"pointer",fontFamily:"inherit",marginRight:8}}>Restart 🔄</button>
+      <button onClick={restart} style={{padding:"8px 20px",borderRadius:20,background:"#3B82F6",color:"white",border:"none",fontWeight:800,cursor:"pointer",fontFamily:"inherit",marginRight:8}}>Restart 🔄</button>
       <button onClick={onClose} style={{padding:"8px 20px",borderRadius:20,background:"none",border:"2px solid #ddd",color:"#888",fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
     </div>
   );
