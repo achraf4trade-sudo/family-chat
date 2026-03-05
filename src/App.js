@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { db } from "./firebase";
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, doc, setDoc, getDoc } from "firebase/firestore";
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, doc } from "firebase/firestore";
 
 const USERS = [
   { id: "achraf", name: "Achraf", role: "Dad",         emoji: "👨", color: "#3B82F6", bg: "#eff6ff" },
@@ -28,7 +28,6 @@ const TRIVIA = [
   {q:"What is the largest ocean?", a:"Pacific", opts:["Atlantic","Indian","Pacific","Arctic"]},
   {q:"What is 15 + 27?", a:"42", opts:["40","41","42","43"]},
 ];
-
 const MATH_QS = [
   {q:"5 + 3 = ?", a:8}, {q:"12 - 7 = ?", a:5}, {q:"4 × 6 = ?", a:24},
   {q:"20 ÷ 4 = ?", a:5}, {q:"9 + 13 = ?", a:22}, {q:"8 × 7 = ?", a:56},
@@ -36,7 +35,6 @@ const MATH_QS = [
   {q:"17 + 25 = ?", a:42},
 ];
 
-// ── TIC TAC TOE ─────────────────────────────────────────────────
 function TicTacToe({ activeUser, onClose }) {
   const [board, setBoard] = useState(Array(9).fill(null));
   const [xUser, setXUser] = useState(null);
@@ -44,29 +42,23 @@ function TicTacToe({ activeUser, onClose }) {
   const [turn, setTurn] = useState("X");
   const [winner, setWinner] = useState(null);
   const [setup, setSetup] = useState(true);
-
   const checkWinner = b => {
-    const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-    for (var l of lines) if (b[l[0]]&&b[l[0]]===b[l[1]]&&b[l[0]]===b[l[2]]) return b[l[0]];
-    if (b.every(Boolean)) return "Draw";
+    const lines=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+    for(var l of lines) if(b[l[0]]&&b[l[0]]===b[l[1]]&&b[l[0]]===b[l[2]]) return b[l[0]];
+    if(b.every(Boolean)) return "Draw";
     return null;
   };
-
   const click = i => {
-    if (board[i]||winner) return;
-    if (turn==="X"&&activeUser!==xUser) return;
-    if (turn==="O"&&activeUser!==oUser) return;
-    const nb = [...board]; nb[i]=turn;
-    const w = checkWinner(nb);
+    if(board[i]||winner) return;
+    if(turn==="X"&&activeUser!==xUser) return;
+    if(turn==="O"&&activeUser!==oUser) return;
+    const nb=[...board]; nb[i]=turn;
+    const w=checkWinner(nb);
     setBoard(nb); setWinner(w);
-    if (!w) setTurn(turn==="X"?"O":"X");
+    if(!w) setTurn(turn==="X"?"O":"X");
   };
-
-  const xu = USERS.find(u=>u.id===xUser);
-  const ou = USERS.find(u=>u.id===oUser);
-  const au = USERS.find(u=>u.id===activeUser);
-
-  if (setup) return (
+  const xu=USERS.find(u=>u.id===xUser), ou=USERS.find(u=>u.id===oUser);
+  if(setup) return (
     <div style={{padding:20,fontFamily:"'Nunito',sans-serif"}}>
       <div style={{fontSize:24,fontWeight:900,marginBottom:16,textAlign:"center"}}>🎯 Tic Tac Toe</div>
       <div style={{marginBottom:12,fontWeight:800,color:"#555"}}>Who plays X?</div>
@@ -81,25 +73,22 @@ function TicTacToe({ activeUser, onClose }) {
       <button onClick={onClose} style={{width:"100%",padding:"10px",borderRadius:20,background:"none",border:"2px solid #ddd",color:"#888",fontWeight:800,fontSize:14,cursor:"pointer",fontFamily:"inherit",marginTop:8}}>Cancel</button>
     </div>
   );
-
   return (
     <div style={{padding:20,fontFamily:"'Nunito',sans-serif",textAlign:"center"}}>
       <div style={{fontSize:22,fontWeight:900,marginBottom:8}}>🎯 Tic Tac Toe</div>
       <div style={{fontSize:13,fontWeight:800,marginBottom:16,color:"#888"}}>
         {xu&&<span style={{color:xu.color}}>{xu.emoji} {xu.name} = X</span>} &nbsp;vs&nbsp; {ou&&<span style={{color:ou.color}}>{ou.emoji} {ou.name} = O</span>}
       </div>
-      {!winner && <div style={{fontSize:14,fontWeight:800,marginBottom:12,color:turn==="X"?xu?.color:ou?.color}}>
+      {!winner&&<div style={{fontSize:14,fontWeight:800,marginBottom:12,color:turn==="X"?xu?.color:ou?.color}}>
         {turn==="X"?xu?.emoji+" "+xu?.name:ou?.emoji+" "+ou?.name}'s turn ({turn})
         {activeUser!==(turn==="X"?xUser:oUser)&&<span style={{color:"#aaa"}}> — waiting...</span>}
       </div>}
-      {winner && <div style={{fontSize:18,fontWeight:900,marginBottom:12,color:winner==="Draw"?"#888":winner==="X"?xu?.color:ou?.color}}>
+      {winner&&<div style={{fontSize:18,fontWeight:900,marginBottom:12,color:winner==="Draw"?"#888":winner==="X"?xu?.color:ou?.color}}>
         {winner==="Draw"?"🤝 Draw!":`🏆 ${winner==="X"?xu?.name:ou?.name} wins!`}
       </div>}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,maxWidth:240,margin:"0 auto 16px"}}>
         {board.map((cell,i)=>(
-          <button key={i} onClick={()=>click(i)} style={{height:72,borderRadius:16,border:"2px solid #eee",background:cell?"white":"#f8f8f8",fontSize:28,fontWeight:900,cursor:"pointer",color:cell==="X"?xu?.color:ou?.color,boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
-            {cell}
-          </button>
+          <button key={i} onClick={()=>click(i)} style={{height:72,borderRadius:16,border:"2px solid #eee",background:cell?"white":"#f8f8f8",fontSize:28,fontWeight:900,cursor:"pointer",color:cell==="X"?xu?.color:ou?.color,boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>{cell}</button>
         ))}
       </div>
       <button onClick={()=>{setBoard(Array(9).fill(null));setWinner(null);setTurn("X");}} style={{padding:"8px 20px",borderRadius:20,background:"#3B82F6",color:"white",border:"none",fontWeight:800,cursor:"pointer",fontFamily:"inherit",marginRight:8}}>Restart 🔄</button>
@@ -108,7 +97,6 @@ function TicTacToe({ activeUser, onClose }) {
   );
 }
 
-// ── MATH QUIZ ───────────────────────────────────────────────────
 function MathQuiz({ activeUser, onClose }) {
   const [qi, setQi] = useState(0);
   const [score, setScore] = useState(0);
@@ -116,21 +104,14 @@ function MathQuiz({ activeUser, onClose }) {
   const [feedback, setFeedback] = useState(null);
   const [done, setDone] = useState(false);
   const q = MATH_QS[qi];
-
-  const submit = () => {
-    const correct = parseInt(answer) === q.a;
-    setFeedback(correct);
-    if (correct) setScore(s=>s+1);
-    setTimeout(()=>{
-      setFeedback(null); setAnswer("");
-      if (qi+1 >= MATH_QS.length) setDone(true);
-      else setQi(i=>i+1);
-    }, 1000);
-  };
-
   const u = USERS.find(u=>u.id===activeUser);
-
-  if (done) return (
+  const submit = () => {
+    const correct=parseInt(answer)===q.a;
+    setFeedback(correct);
+    if(correct) setScore(s=>s+1);
+    setTimeout(()=>{ setFeedback(null); setAnswer(""); if(qi+1>=MATH_QS.length) setDone(true); else setQi(i=>i+1); },1000);
+  };
+  if(done) return (
     <div style={{padding:24,textAlign:"center",fontFamily:"'Nunito',sans-serif"}}>
       <div style={{fontSize:48,marginBottom:8}}>🏆</div>
       <div style={{fontSize:22,fontWeight:900,marginBottom:8}}>{u?.name}'s Score</div>
@@ -140,7 +121,6 @@ function MathQuiz({ activeUser, onClose }) {
       <button onClick={onClose} style={{padding:"10px 24px",borderRadius:20,background:"none",border:"2px solid #ddd",color:"#888",fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
     </div>
   );
-
   return (
     <div style={{padding:24,fontFamily:"'Nunito',sans-serif"}}>
       <div style={{fontSize:22,fontWeight:900,marginBottom:4,textAlign:"center"}}>🔢 Math Quiz</div>
@@ -148,9 +128,8 @@ function MathQuiz({ activeUser, onClose }) {
       <div style={{background:u?.bg,border:"2px solid "+u?.color,borderRadius:20,padding:"20px",textAlign:"center",marginBottom:20}}>
         <div style={{fontSize:28,fontWeight:900,color:u?.color}}>{q.q}</div>
       </div>
-      <input value={answer} onChange={e=>setAnswer(e.target.value)} onKeyDown={e=>e.key==="Enter"&&answer&&submit()}
-        placeholder="Your answer..." type="number"
-        style={{width:"100%",border:"2px solid "+(feedback===null?"#ddd":feedback?"#10B981":"#EF4444"),borderRadius:20,padding:"12px 16px",fontSize:18,fontFamily:"inherit",fontWeight:700,outline:"none",boxSizing:"border-box",background:feedback===null?"white":feedback?"#ecfdf5":"#fef2f2",textAlign:"center",marginBottom:12}} />
+      <input value={answer} onChange={e=>setAnswer(e.target.value)} onKeyDown={e=>e.key==="Enter"&&answer&&submit()} placeholder="Your answer..." type="number"
+        style={{width:"100%",border:"2px solid "+(feedback===null?"#ddd":feedback?"#10B981":"#EF4444"),borderRadius:20,padding:"12px 16px",fontSize:18,fontFamily:"inherit",fontWeight:700,outline:"none",boxSizing:"border-box",background:feedback===null?"white":feedback?"#ecfdf5":"#fef2f2",textAlign:"center",marginBottom:12}}/>
       {feedback!==null&&<div style={{textAlign:"center",fontSize:18,fontWeight:900,color:feedback?"#10B981":"#EF4444",marginBottom:8}}>{feedback?"✅ Correct!":"❌ Answer: "+q.a}</div>}
       <button onClick={submit} disabled={!answer} style={{width:"100%",padding:"12px",borderRadius:20,background:answer?u?.color:"#ddd",color:"white",border:"none",fontWeight:900,fontSize:16,cursor:answer?"pointer":"default",fontFamily:"inherit"}}>Submit ➤</button>
       <button onClick={onClose} style={{width:"100%",padding:"10px",borderRadius:20,background:"none",border:"2px solid #ddd",color:"#888",fontWeight:800,fontSize:14,cursor:"pointer",fontFamily:"inherit",marginTop:8}}>Close</button>
@@ -158,7 +137,6 @@ function MathQuiz({ activeUser, onClose }) {
   );
 }
 
-// ── TRIVIA ──────────────────────────────────────────────────────
 function Trivia({ activeUser, onClose }) {
   const [qi, setQi] = useState(()=>Math.floor(Math.random()*TRIVIA.length));
   const [score, setScore] = useState(0);
@@ -166,19 +144,13 @@ function Trivia({ activeUser, onClose }) {
   const [count, setCount] = useState(0);
   const q = TRIVIA[qi];
   const u = USERS.find(u=>u.id===activeUser);
-
   const pick = opt => {
-    if (answered) return;
+    if(answered) return;
     setAnswered(opt);
-    if (opt===q.a) setScore(s=>s+1);
-    setTimeout(()=>{
-      setAnswered(null);
-      setQi(Math.floor(Math.random()*TRIVIA.length));
-      setCount(c=>c+1);
-    }, 1200);
+    if(opt===q.a) setScore(s=>s+1);
+    setTimeout(()=>{ setAnswered(null); setQi(Math.floor(Math.random()*TRIVIA.length)); setCount(c=>c+1); },1200);
   };
-
-  if (count>=8) return (
+  if(count>=8) return (
     <div style={{padding:24,textAlign:"center",fontFamily:"'Nunito',sans-serif"}}>
       <div style={{fontSize:48,marginBottom:8}}>🧠</div>
       <div style={{fontSize:22,fontWeight:900,marginBottom:8}}>{u?.name}'s Trivia Score</div>
@@ -188,7 +160,6 @@ function Trivia({ activeUser, onClose }) {
       <button onClick={onClose} style={{padding:"10px 24px",borderRadius:20,background:"none",border:"2px solid #ddd",color:"#888",fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
     </div>
   );
-
   return (
     <div style={{padding:24,fontFamily:"'Nunito',sans-serif"}}>
       <div style={{fontSize:22,fontWeight:900,marginBottom:4,textAlign:"center"}}>🧠 Trivia</div>
@@ -198,14 +169,10 @@ function Trivia({ activeUser, onClose }) {
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
         {q.opts.map(opt=>{
-          var bg="white", border="2px solid #eee", color="#1e1e1e";
-          if (answered===opt) { bg=opt===q.a?"#ecfdf5":"#fef2f2"; border="2px solid "+(opt===q.a?"#10B981":"#EF4444"); color=opt===q.a?"#10B981":"#EF4444"; }
-          else if (answered&&opt===q.a) { bg="#ecfdf5"; border="2px solid #10B981"; color="#10B981"; }
-          return (
-            <button key={opt} onClick={()=>pick(opt)} style={{padding:"12px 8px",borderRadius:16,border,background:bg,fontWeight:800,fontSize:14,cursor:"pointer",fontFamily:"inherit",color}}>
-              {opt}
-            </button>
-          );
+          var bg="white",border="2px solid #eee",color="#1e1e1e";
+          if(answered===opt){bg=opt===q.a?"#ecfdf5":"#fef2f2";border="2px solid "+(opt===q.a?"#10B981":"#EF4444");color=opt===q.a?"#10B981":"#EF4444";}
+          else if(answered&&opt===q.a){bg="#ecfdf5";border="2px solid #10B981";color="#10B981";}
+          return <button key={opt} onClick={()=>pick(opt)} style={{padding:"12px 8px",borderRadius:16,border,background:bg,fontWeight:800,fontSize:14,cursor:"pointer",fontFamily:"inherit",color}}>{opt}</button>;
         })}
       </div>
       <button onClick={onClose} style={{width:"100%",padding:"10px",borderRadius:20,background:"none",border:"2px solid #ddd",color:"#888",fontWeight:800,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
@@ -213,54 +180,34 @@ function Trivia({ activeUser, onClose }) {
   );
 }
 
-// ── DRAWING ─────────────────────────────────────────────────────
-function Drawing({ activeUser, onClose }) {
+function Drawing({ onClose }) {
   const canvasRef = useRef(null);
   const [drawing, setDrawing] = useState(false);
   const [color, setColor] = useState("#3B82F6");
   const [size, setSize] = useState(4);
-  const [word] = useState(()=>{
-    const words=["cat","house","tree","sun","car","fish","apple","star","moon","flower"];
-    return words[Math.floor(Math.random()*words.length)];
-  });
   const [showWord, setShowWord] = useState(false);
-  const u = USERS.find(u=>u.id===activeUser);
-  const colors = ["#3B82F6","#EC4899","#10B981","#F59E0B","#EF4444","#8B5CF6","#000000","#ffffff"];
-
-  const getPos = e => {
-    const r = canvasRef.current.getBoundingClientRect();
-    if (e.touches) return {x:e.touches[0].clientX-r.left, y:e.touches[0].clientY-r.top};
-    return {x:e.clientX-r.left, y:e.clientY-r.top};
-  };
-
+  const [word] = useState(()=>{const w=["cat","house","tree","sun","car","fish","apple","star","moon","flower"];return w[Math.floor(Math.random()*w.length)];});
+  const colors=["#3B82F6","#EC4899","#10B981","#F59E0B","#EF4444","#8B5CF6","#000000","#ffffff"];
+  const getPos = e => { const r=canvasRef.current.getBoundingClientRect(); if(e.touches) return {x:e.touches[0].clientX-r.left,y:e.touches[0].clientY-r.top}; return {x:e.clientX-r.left,y:e.clientY-r.top}; };
   const start = e => { e.preventDefault(); setDrawing(true); const {x,y}=getPos(e); const ctx=canvasRef.current.getContext("2d"); ctx.beginPath(); ctx.moveTo(x,y); };
   const move = e => { e.preventDefault(); if(!drawing) return; const {x,y}=getPos(e); const ctx=canvasRef.current.getContext("2d"); ctx.strokeStyle=color; ctx.lineWidth=size; ctx.lineCap="round"; ctx.lineTo(x,y); ctx.stroke(); };
   const end = () => setDrawing(false);
   const clear = () => { const ctx=canvasRef.current.getContext("2d"); ctx.clearRect(0,0,canvasRef.current.width,canvasRef.current.height); };
-
   return (
     <div style={{padding:16,fontFamily:"'Nunito',sans-serif"}}>
       <div style={{fontSize:20,fontWeight:900,marginBottom:8,textAlign:"center"}}>🎨 Draw & Guess</div>
       <div style={{textAlign:"center",marginBottom:10}}>
-        <button onClick={()=>setShowWord(!showWord)} style={{padding:"6px 16px",borderRadius:20,background:u?.color,color:"white",border:"none",fontWeight:800,cursor:"pointer",fontFamily:"inherit",fontSize:13}}>
-          {showWord?"Hide Word 🙈":"Show My Word 👁"}
-        </button>
-        {showWord&&<div style={{fontSize:20,fontWeight:900,color:u?.color,marginTop:8}}>Draw: <span style={{textTransform:"uppercase"}}>{word}</span></div>}
+        <button onClick={()=>setShowWord(!showWord)} style={{padding:"6px 16px",borderRadius:20,background:"#3B82F6",color:"white",border:"none",fontWeight:800,cursor:"pointer",fontFamily:"inherit",fontSize:13}}>{showWord?"Hide Word 🙈":"Show My Word 👁"}</button>
+        {showWord&&<div style={{fontSize:20,fontWeight:900,color:"#3B82F6",marginTop:8}}>Draw: <span style={{textTransform:"uppercase"}}>{word}</span></div>}
       </div>
-      <canvas ref={canvasRef} width={320} height={220}
-        style={{border:"2px solid #eee",borderRadius:16,display:"block",margin:"0 auto 12px",background:"white",touchAction:"none",cursor:"crosshair"}}
-        onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
-        onTouchStart={start} onTouchMove={move} onTouchEnd={end} />
+      <canvas ref={canvasRef} width={320} height={220} style={{border:"2px solid #eee",borderRadius:16,display:"block",margin:"0 auto 12px",background:"white",touchAction:"none",cursor:"crosshair"}}
+        onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end} onTouchStart={start} onTouchMove={move} onTouchEnd={end}/>
       <div style={{display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap",marginBottom:10}}>
-        {colors.map(c=>(
-          <button key={c} onClick={()=>setColor(c)} style={{width:28,height:28,borderRadius:"50%",background:c,border:color===c?"3px solid #333":"2px solid #ddd",cursor:"pointer"}} />
-        ))}
+        {colors.map(c=><button key={c} onClick={()=>setColor(c)} style={{width:28,height:28,borderRadius:"50%",background:c,border:color===c?"3px solid #333":"2px solid #ddd",cursor:"pointer"}}/>)}
       </div>
       <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:12,alignItems:"center"}}>
         <span style={{fontSize:12,fontWeight:700,color:"#888"}}>Size:</span>
-        {[2,4,8,14].map(s=>(
-          <button key={s} onClick={()=>setSize(s)} style={{width:s+16,height:s+16,borderRadius:"50%",background:"#333",border:size===s?"3px solid #3B82F6":"2px solid #ddd",cursor:"pointer"}} />
-        ))}
+        {[2,4,8,14].map(s=><button key={s} onClick={()=>setSize(s)} style={{width:s+16,height:s+16,borderRadius:"50%",background:"#333",border:size===s?"3px solid #3B82F6":"2px solid #ddd",cursor:"pointer"}}/>)}
         <button onClick={clear} style={{padding:"4px 14px",borderRadius:20,background:"#fef2f2",border:"2px solid #EF4444",color:"#EF4444",fontWeight:800,cursor:"pointer",fontFamily:"inherit",fontSize:12,marginLeft:8}}>Clear 🗑</button>
       </div>
       <button onClick={onClose} style={{width:"100%",padding:"10px",borderRadius:20,background:"none",border:"2px solid #ddd",color:"#888",fontWeight:800,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
@@ -268,7 +215,6 @@ function Drawing({ activeUser, onClose }) {
   );
 }
 
-// ── MAIN APP ─────────────────────────────────────────────────────
 export default function FamilyChat() {
   const [screen, setScreen] = useState("launcher");
   const [activeUser, setActiveUser] = useState(null);
@@ -289,12 +235,9 @@ export default function FamilyChat() {
   const audioChunksRef = useRef([]);
   const audioRefs = useRef({});
 
-  useEffect(() => {
-    var q = query(collection(db,"messages"),orderBy("time","asc"));
-    var unsub = onSnapshot(q,snap=>{
-      var msgs=[]; snap.forEach(d=>msgs.push(Object.assign({id:d.id},d.data())));
-      setMessages(msgs); setLoading(false);
-    });
+  useEffect(()=>{
+    var q=query(collection(db,"messages"),orderBy("time","asc"));
+    var unsub=onSnapshot(q,snap=>{ var msgs=[]; snap.forEach(d=>msgs.push(Object.assign({id:d.id},d.data()))); setMessages(msgs); setLoading(false); });
     return ()=>unsub();
   },[]);
 
@@ -306,59 +249,34 @@ export default function FamilyChat() {
     return ()=>clearInterval(recordTimerRef.current);
   },[recording]);
 
-  var user = USERS.find(u=>u.id===activeUser);
-  var isTablet = activeUser&&DEVICE_PRESETS[activeUser].device==="tablet";
-  var allVisible = messages.filter(m=>{ if(!m.to) return true; return m.sender===activeUser||m.to===activeUser; });
-  var dmVisible = messages.filter(m=>m.to!=null&&(m.to===activeUser||m.sender===activeUser));
-  var shownMessages = filter==="all" ? allVisible : dmVisible;
-  var dmCount = messages.filter(m=>m.to===activeUser).length;
+  var user=USERS.find(u=>u.id===activeUser);
+  var isTablet=activeUser&&DEVICE_PRESETS[activeUser].device==="tablet";
+  var allVisible=messages.filter(m=>{ if(!m.to) return true; return m.sender===activeUser||m.to===activeUser; });
+  var dmVisible=messages.filter(m=>m.to!=null&&(m.to===activeUser||m.sender===activeUser));
+  var shownMessages=filter==="all"?allVisible:dmVisible;
+  var dmCount=messages.filter(m=>m.to===activeUser).length;
 
-  var sendMessage = (text, photo) => {
+  var sendMessage=(text,photo)=>{
     var t=text!==undefined?text:input, p=photo||null;
     if(!t.trim()&&!p) return;
     addDoc(collection(db,"messages"),{sender:activeUser,to:targetUser||null,text:t.trim(),time:serverTimestamp(),reactions:{},photo:p,isVoice:false,audioData:null,voiceDuration:0});
     setInput(""); setShowStickers(false); setTargetUser(null);
   };
 
-  var handlePhotoUpload = e => {
-    var file=e.target.files[0]; if(!file) return;
-    var r=new FileReader(); r.onload=ev=>sendMessage("",ev.target.result); r.readAsDataURL(file);
-  };
+  var handlePhotoUpload=e=>{ var file=e.target.files[0]; if(!file) return; var r=new FileReader(); r.onload=ev=>sendMessage("",ev.target.result); r.readAsDataURL(file); };
 
-  var startRecording = () => {
-    navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
-      audioChunksRef.current=[];
-      var mr=new MediaRecorder(stream); mediaRecorderRef.current=mr;
-      mr.ondataavailable=e=>{ if(e.data.size>0) audioChunksRef.current.push(e.data); };
-      mr.start(); setRecording(true);
-    }).catch(()=>alert("Microphone access denied."));
-  };
+  var startRecording=()=>{ navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{ audioChunksRef.current=[]; var mr=new MediaRecorder(stream); mediaRecorderRef.current=mr; mr.ondataavailable=e=>{ if(e.data.size>0) audioChunksRef.current.push(e.data); }; mr.start(); setRecording(true); }).catch(()=>alert("Microphone access denied.")); };
 
-  var stopRecording = () => {
+  var stopRecording=()=>{
     if(!mediaRecorderRef.current) return;
     var dur=Math.max(recordingTime,1);
-    mediaRecorderRef.current.onstop=()=>{
-      var blob=new Blob(audioChunksRef.current,{type:"audio/webm"});
-      var r=new FileReader(); r.onload=ev=>{
-        addDoc(collection(db,"messages"),{sender:activeUser,to:targetUser||null,text:"",time:serverTimestamp(),reactions:{},photo:null,isVoice:true,audioData:ev.target.result,voiceDuration:dur});
-        setTargetUser(null);
-      }; r.readAsDataURL(blob);
-      mediaRecorderRef.current.stream.getTracks().forEach(t=>t.stop());
-    };
+    mediaRecorderRef.current.onstop=()=>{ var blob=new Blob(audioChunksRef.current,{type:"audio/webm"}); var r=new FileReader(); r.onload=ev=>{ addDoc(collection(db,"messages"),{sender:activeUser,to:targetUser||null,text:"",time:serverTimestamp(),reactions:{},photo:null,isVoice:true,audioData:ev.target.result,voiceDuration:dur}); setTargetUser(null); }; r.readAsDataURL(blob); mediaRecorderRef.current.stream.getTracks().forEach(t=>t.stop()); };
     mediaRecorderRef.current.stop(); setRecording(false);
   };
 
-  var toggleReaction = (msgId,emoji) => {
-    var msg=messages.find(m=>m.id===msgId); if(!msg) return;
-    var reactors=(msg.reactions&&msg.reactions[emoji])||[];
-    var already=reactors.includes(activeUser);
-    var updated=already?reactors.filter(u=>u!==activeUser):reactors.concat([activeUser]);
-    var nr=Object.assign({},msg.reactions||{}); nr[emoji]=updated;
-    updateDoc(doc(db,"messages",msgId),{reactions:nr}); setShowEmoji(null);
-  };
+  var toggleReaction=(msgId,emoji)=>{ var msg=messages.find(m=>m.id===msgId); if(!msg) return; var reactors=(msg.reactions&&msg.reactions[emoji])||[]; var already=reactors.includes(activeUser); var updated=already?reactors.filter(u=>u!==activeUser):reactors.concat([activeUser]); var nr=Object.assign({},msg.reactions||{}); nr[emoji]=updated; updateDoc(doc(db,"messages",msgId),{reactions:nr}); setShowEmoji(null); };
 
-  // LAUNCHER
-  if (screen==="launcher") return (
+  if(screen==="launcher") return (
     <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#1e1b4b,#312e81,#4c1d95)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 20px",fontFamily:"'Nunito',sans-serif"}}>
       <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
       <div style={{fontSize:56,marginBottom:8}}>👨‍👩‍👧‍👦</div>
@@ -366,8 +284,7 @@ export default function FamilyChat() {
       <div style={{fontSize:14,color:"#c4b5fd",fontWeight:600,marginBottom:40}}>عائلة أشرف</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,width:"100%",maxWidth:400}}>
         {USERS.map(u=>(
-          <button key={u.id} onClick={()=>{setActiveUser(u.id);setScreen("chat");setFilter("all");}}
-            style={{background:"white",border:"3px solid "+u.color,borderRadius:20,padding:"24px 16px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:8,boxShadow:"0 8px 32px "+u.color+"44"}}>
+          <button key={u.id} onClick={()=>{setActiveUser(u.id);setScreen("chat");setFilter("all");}} style={{background:"white",border:"3px solid "+u.color,borderRadius:20,padding:"24px 16px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:8,boxShadow:"0 8px 32px "+u.color+"44"}}>
             <div style={{fontSize:40}}>{u.emoji}</div>
             <div style={{fontWeight:900,fontSize:16,color:u.color}}>{u.name}</div>
             <div style={{fontSize:11,color:"#888",fontWeight:700}}>{u.role}</div>
@@ -379,8 +296,7 @@ export default function FamilyChat() {
     </div>
   );
 
-  // GAME MODAL
-  if (activeGame) return (
+  if(activeGame) return (
     <div style={{minHeight:"100vh",background:"#f8f8f8",fontFamily:"'Nunito',sans-serif",display:"flex",flexDirection:"column"}}>
       <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
       <div style={{background:"linear-gradient(135deg,"+user.color+","+user.color+"bb)",padding:"14px 16px",display:"flex",alignItems:"center",gap:12,boxShadow:"0 4px 16px rgba(0,0,0,0.18)"}}>
@@ -392,56 +308,40 @@ export default function FamilyChat() {
           {activeGame==="ttt"&&<TicTacToe activeUser={activeUser} onClose={()=>setActiveGame(null)}/>}
           {activeGame==="math"&&<MathQuiz activeUser={activeUser} onClose={()=>setActiveGame(null)}/>}
           {activeGame==="trivia"&&<Trivia activeUser={activeUser} onClose={()=>setActiveGame(null)}/>}
-          {activeGame==="draw"&&<Drawing activeUser={activeUser} onClose={()=>setActiveGame(null)}/>}
+          {activeGame==="draw"&&<Drawing onClose={()=>setActiveGame(null)}/>}
         </div>
       </div>
     </div>
   );
 
-  // CHAT
   return (
     <div style={{fontFamily:"'Nunito',sans-serif",minHeight:"100vh",background:user.bg,display:"flex",flexDirection:"column"}}>
       <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
-
       <div style={{background:"linear-gradient(135deg,"+user.color+","+user.color+"bb)",padding:"14px 16px",display:"flex",alignItems:"center",gap:12,boxShadow:"0 4px 16px rgba(0,0,0,0.18)",position:"sticky",top:0,zIndex:20}}>
         <button onClick={()=>setScreen("launcher")} style={{background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:36,height:36,color:"white",fontSize:18,cursor:"pointer"}}>‹</button>
         <div style={{fontSize:32}}>👨‍👩‍👧‍👦</div>
-        <div>
-          <div style={{fontSize:18,fontWeight:900,color:"white"}}>Family Chat</div>
-          <div style={{fontSize:11,color:"rgba(255,255,255,0.8)",fontWeight:700}}>Achraf · Loubna · Soltan · Hasnae</div>
-        </div>
+        <div><div style={{fontSize:18,fontWeight:900,color:"white"}}>Family Chat</div><div style={{fontSize:11,color:"rgba(255,255,255,0.8)",fontWeight:700}}>Achraf · Loubna · Soltan · Hasnae</div></div>
         <button onClick={()=>setScreen("games")} style={{marginLeft:"auto",background:"rgba(255,255,255,0.25)",border:"none",borderRadius:20,padding:"6px 14px",color:"white",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>🎮 Games</button>
       </div>
 
-      {screen==="games" ? (
+      {screen==="games"?(
         <div style={{flex:1,padding:20,display:"flex",flexDirection:"column",gap:16}}>
           <div style={{fontSize:22,fontWeight:900,color:user.color,textAlign:"center",marginBottom:8}}>🎮 Family Games</div>
-          {[
-            {id:"ttt",  icon:"🎯", name:"Tic Tac Toe",   desc:"2 players, take turns!"},
-            {id:"math", icon:"🔢", name:"Math Quiz",      desc:"Test your math skills!"},
-            {id:"trivia",icon:"🧠",name:"Trivia",         desc:"8 fun questions!"},
-            {id:"draw", icon:"🎨", name:"Draw & Guess",   desc:"Draw a word for the family!"},
-          ].map(g=>(
-            <button key={g.id} onClick={()=>setActiveGame(g.id)}
-              style={{background:"white",border:"2px solid "+user.color,borderRadius:20,padding:"16px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:16,boxShadow:"0 4px 16px "+user.color+"22",fontFamily:"inherit"}}>
+          {[{id:"ttt",icon:"🎯",name:"Tic Tac Toe",desc:"2 players, take turns!"},{id:"math",icon:"🔢",name:"Math Quiz",desc:"Test your math skills!"},{id:"trivia",icon:"🧠",name:"Trivia",desc:"8 fun questions!"},{id:"draw",icon:"🎨",name:"Draw & Guess",desc:"Draw a word for the family!"}].map(g=>(
+            <button key={g.id} onClick={()=>setActiveGame(g.id)} style={{background:"white",border:"2px solid "+user.color,borderRadius:20,padding:"16px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:16,boxShadow:"0 4px 16px "+user.color+"22",fontFamily:"inherit"}}>
               <div style={{fontSize:36}}>{g.icon}</div>
-              <div style={{textAlign:"left"}}>
-                <div style={{fontWeight:900,fontSize:16,color:user.color}}>{g.name}</div>
-                <div style={{fontSize:12,color:"#888",fontWeight:600}}>{g.desc}</div>
-              </div>
+              <div style={{textAlign:"left"}}><div style={{fontWeight:900,fontSize:16,color:user.color}}>{g.name}</div><div style={{fontSize:12,color:"#888",fontWeight:600}}>{g.desc}</div></div>
             </button>
           ))}
           <button onClick={()=>setScreen("chat")} style={{padding:"12px",borderRadius:20,background:"none",border:"2px solid #ddd",color:"#888",fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>← Back to Chat</button>
         </div>
-      ) : (
+      ):(
         <>
           <div style={{display:"flex",borderBottom:"2px solid #eee",background:"white"}}>
             <button onClick={()=>setFilter("all")} style={{flex:1,padding:"10px 0",border:"none",background:"none",fontFamily:"inherit",fontWeight:800,fontSize:13,cursor:"pointer",color:filter==="all"?user.color:"#aaa",borderBottom:filter==="all"?"3px solid "+user.color:"3px solid transparent"}}>👥 Group</button>
             <button onClick={()=>setFilter("dm")} style={{flex:1,padding:"10px 0",border:"none",background:"none",fontFamily:"inherit",fontWeight:800,fontSize:13,cursor:"pointer",color:filter==="dm"?user.color:"#aaa",borderBottom:filter==="dm"?"3px solid "+user.color:"3px solid transparent"}}>{"💌 My DMs"+(dmCount?" ("+dmCount+")":"")}</button>
           </div>
-
           {isTablet&&<div style={{background:user.color+"18",borderBottom:"2px dashed "+user.color+"44",padding:"7px 16px",textAlign:"center",fontSize:13,fontWeight:800,color:user.color}}>{user.emoji} Hey {user.name}! {filter==="dm"?"Here are your personal messages 💌":"Say hi to the family 👋"}</div>}
-
           <div style={{flex:1,overflowY:"auto",padding:"16px",display:"flex",flexDirection:"column",gap:10}}>
             {loading&&<div style={{textAlign:"center",padding:40,color:"#aaa",fontWeight:700}}>Loading... 💬</div>}
             {!loading&&shownMessages.length===0&&<div style={{textAlign:"center",padding:40,color:"#aaa",fontWeight:700}}>No messages yet! Say hello 👋</div>}
@@ -484,13 +384,11 @@ export default function FamilyChat() {
             })}
             <div ref={messagesEndRef}/>
           </div>
-
           {showStickers&&(
             <div style={{background:"white",borderTop:"2px solid #eee",padding:"12px 16px",display:"flex",flexWrap:"wrap",gap:8,maxHeight:130,overflowY:"auto"}}>
               {STICKERS.map(s=><span key={s} onClick={()=>sendMessage(s)} style={{fontSize:isTablet?34:26,cursor:"pointer",padding:4,borderRadius:10,background:"#f5f5f5"}}>{s}</span>)}
             </div>
           )}
-
           <div style={{background:"white",borderTop:"1px solid #f0f0f0",padding:"8px 16px",display:"flex",alignItems:"center",gap:8,overflowX:"auto"}}>
             <span style={{fontSize:12,fontWeight:800,color:"#aaa",flexShrink:0}}>Send to:</span>
             <button onClick={()=>setTargetUser(null)} style={{flexShrink:0,padding:"5px 12px",borderRadius:20,border:"2px solid "+(!targetUser?user.color:"#ddd"),background:!targetUser?user.color+"18":"white",fontWeight:800,fontSize:12,color:!targetUser?user.color:"#888",cursor:"pointer",fontFamily:"inherit"}}>👥 Everyone</button>
@@ -498,7 +396,6 @@ export default function FamilyChat() {
               <button key={u.id} onClick={()=>setTargetUser(targetUser===u.id?null:u.id)} style={{flexShrink:0,display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:20,border:"2px solid "+(targetUser===u.id?u.color:"#ddd"),background:targetUser===u.id?u.color+"18":"white",fontWeight:800,fontSize:12,color:targetUser===u.id?u.color:"#888",cursor:"pointer",fontFamily:"inherit"}}>{u.emoji} {u.name}</button>
             ))}
           </div>
-
           <div style={{background:"white",borderTop:"2px solid #eee",padding:isTablet?"14px 16px":"10px 14px",display:"flex",alignItems:"center",gap:isTablet?10:8,boxShadow:"0 -4px 20px rgba(0,0,0,0.06)"}}>
             <button onClick={()=>setShowStickers(!showStickers)} style={{width:isTablet?48:40,height:isTablet?48:40,borderRadius:"50%",border:"2px solid "+user.color,background:showStickers?user.color+"22":"white",fontSize:isTablet?24:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>🌟</button>
             <button onClick={()=>fileInputRef.current.click()} style={{width:isTablet?48:40,height:isTablet?48:40,borderRadius:"50%",border:"2px solid "+user.color,background:"white",fontSize:isTablet?24:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>📷</button>
@@ -511,7 +408,6 @@ export default function FamilyChat() {
           </div>
         </>
       )}
-
       {recording&&(
         <div style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",background:"white",borderRadius:20,padding:"20px 32px",boxShadow:"0 8px 40px rgba(0,0,0,0.2)",textAlign:"center",zIndex:100,border:"3px solid #EF4444"}}>
           <div style={{fontSize:40,marginBottom:8}}>🎙️</div>
