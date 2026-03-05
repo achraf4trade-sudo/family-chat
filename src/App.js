@@ -1,4 +1,10 @@
 import { useState, useRef, useEffect } from "react";
+import { db } from "./firebase";
+import {
+  collection, addDoc, onSnapshot,
+  query, orderBy, serverTimestamp,
+  updateDoc, doc
+} from "firebase/firestore";
 
 const USERS = [
   { id: "achraf", name: "Achraf", role: "Dad",         emoji: "👨", color: "#3B82F6", bg: "#eff6ff" },
@@ -16,17 +22,12 @@ const DEVICE_PRESETS = {
 
 const EMOJI_REACTIONS = ["❤️", "😂", "😮", "👍", "🎉", "🔥"];
 const STICKERS = ["🌈","⭐","🦄","🍕","🎮","🐶","🐱","🦁","🎨","🎵","🏆","🌟","🌺","🦋","🍦","🎀"];
-const fmt = (d) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const fmt = (d) => d && d.toDate ? d.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 export default function FamilyChat() {
   const [screen, setScreen] = useState("launcher");
   const [activeUser, setActiveUser] = useState(null);
-  const [messages, setMessages] = useState([
-    { id: 1, sender: "achraf", to: null,     text: "السلام عليكم يا أحبابي! 🥰",       time: new Date(Date.now()-60000*12), reactions: { "❤️": ["loubna","hasnae"] }, photo: null, isVoice: false, voiceDuration: 0 },
-    { id: 2, sender: "loubna", to: null,     text: "وعليكم السلام حبيبي! كيف حالك؟ 💕", time: new Date(Date.now()-60000*10), reactions: {},                          photo: null, isVoice: false, voiceDuration: 0 },
-    { id: 3, sender: "soltan", to: "achraf", text: "بابا تعال نلعب! 🎮🔥",              time: new Date(Date.now()-60000*8),  reactions: { "😂": ["achraf","loubna"] }, photo: null, isVoice: false, voiceDuration: 0 },
-    { id: 4, sender: "hasnae", to: "loubna", text: "ماما بحبك كتير 🌸💖",               time: new Date(Date.now()-60000*5),  reactions: { "❤️": ["loubna"] },          photo: null, isVoice: false, voiceDuration: 0 },
-  ]);
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [targetUser, setTargetUser] = useState(null);
   const [showEmoji, setShowEmoji] = useState(null);
@@ -35,9 +36,23 @@ export default function FamilyChat() {
   const [recording, setRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [playingVoice, setPlayingVoice] = useState(null);
+  const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const recordTimerRef = useRef(null);
+
+  useEffect(() => {
+    var q = query(collection(db, "messages"), orderBy("time", "asc"));
+    var unsubscribe = onSnapshot(q, function(snapshot) {
+      var msgs = [];
+      snapshot.forEach(function(d) {
+        msgs.push(Object.assign({ id: d.id }, d.data()));
+      });
+      setMessages(msgs);
+      setLoading(false);
+    });
+    return function() { unsubscribe(); };
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -45,44 +60,50 @@ export default function FamilyChat() {
 
   useEffect(() => {
     if (recording) {
-      recordTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+      recordTimerRef.current = setInterval(function() { setRecordingTime(function(t) { return t + 1; }); }, 1000);
     } else {
       clearInterval(recordTimerRef.current);
       setRecordingTime(0);
     }
-    return () => clearInterval(recordTimerRef.current);
+    return function() { clearInterval(recordTimerRef.current); };
   }, [recording]);
 
-  const user = USERS.find(u => u.id === activeUser);
-  const isTablet = activeUser && DEVICE_PRESETS[activeUser].device === "tablet";
+  var user = USERS.find(function(u) { return u.id === activeUser; });
+  var isTablet = activeUser && DEVICE_PRESETS[activeUser].device === "tablet";
 
-  const allVisible = messages.filter(m => {
+  var allVisible = messages.filter(function(m) {
     if (!m.to) return true;
     return m.sender === activeUser || m.to === activeUser;
   });
 
-  const dmVisible = messages.filter(m => {
-    return m.to !== null && (m.to === activeUser || m.sender === activeUser);
+  var dmVisible = messages.filter(function(m) {
+    return m.to !== null && m.to !== undefined && (m.to === activeUser || m.sender === activeUser);
   });
 
-  const sendMessage = (text, photo, isVoice, voiceDuration) => {
+  var shownMessages = filter === "all" ? allVisible : dmVisible;
+
+  var sendMessage = function(text, photo, isVoice, voiceDuration) {
     var t = text !== undefined ? text : input;
     var p = photo !== undefined ? photo : null;
     var iv = isVoice !== undefined ? isVoice : false;
     var vd = voiceDuration !== undefined ? voiceDuration : 0;
     if (!t.trim() && !p && !iv) return;
-    setMessages(function(prev) {
-      return prev.concat([{
-        id: Date.now(), sender: activeUser, to: targetUser,
-        text: t.trim(), time: new Date(), reactions: {}, photo: p, isVoice: iv, voiceDuration: vd
-      }]);
+    addDoc(collection(db, "messages"), {
+      sender: activeUser,
+      to: targetUser || null,
+      text: t.trim(),
+      time: serverTimestamp(),
+      reactions: {},
+      photo: p || null,
+      isVoice: iv,
+      voiceDuration: vd
     });
     setInput("");
     setShowStickers(false);
     setTargetUser(null);
   };
 
-  const handlePhotoUpload = (e) => {
+  var handlePhotoUpload = function(e) {
     var file = e.target.files[0];
     if (!file) return;
     var r = new FileReader();
@@ -90,35 +111,27 @@ export default function FamilyChat() {
     r.readAsDataURL(file);
   };
 
-  const handleVoice = () => {
-    if (!recording) {
-      setRecording(true);
-      return;
-    }
+  var handleVoice = function() {
+    if (!recording) { setRecording(true); return; }
     setRecording(false);
     var dur = Math.max(recordingTime, 1);
-    setMessages(function(prev) {
-      return prev.concat([{
-        id: Date.now(), sender: activeUser, to: targetUser,
-        text: "", time: new Date(), reactions: {}, photo: null, isVoice: true, voiceDuration: dur
-      }]);
+    addDoc(collection(db, "messages"), {
+      sender: activeUser, to: targetUser || null,
+      text: "", time: serverTimestamp(), reactions: {},
+      photo: null, isVoice: true, voiceDuration: dur
     });
     setTargetUser(null);
   };
 
-  const toggleReaction = (msgId, emoji) => {
-    setMessages(function(prev) {
-      return prev.map(function(m) {
-        if (m.id !== msgId) return m;
-        var reactors = m.reactions[emoji] || [];
-        var already = reactors.includes(activeUser);
-        var updated = already ? reactors.filter(function(u) { return u !== activeUser; }) : reactors.concat([activeUser]);
-        var nr = Object.assign({}, m.reactions);
-        nr[emoji] = updated;
-        if (!nr[emoji].length) delete nr[emoji];
-        return Object.assign({}, m, { reactions: nr });
-      });
-    });
+  var toggleReaction = function(msgId, emoji) {
+    var msg = messages.find(function(m) { return m.id === msgId; });
+    if (!msg) return;
+    var reactors = (msg.reactions && msg.reactions[emoji]) ? msg.reactions[emoji] : [];
+    var already = reactors.includes(activeUser);
+    var updated = already ? reactors.filter(function(u) { return u !== activeUser; }) : reactors.concat([activeUser]);
+    var newReactions = Object.assign({}, msg.reactions || {});
+    newReactions[emoji] = updated;
+    updateDoc(doc(db, "messages", msgId), { reactions: newReactions });
     setShowEmoji(null);
   };
 
@@ -132,7 +145,7 @@ export default function FamilyChat() {
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, width:"100%", maxWidth:400 }}>
           {USERS.map(function(u) {
             return (
-              <button key={u.id} onClick={function() { setActiveUser(u.id); setScreen("chat"); }}
+              <button key={u.id} onClick={function() { setActiveUser(u.id); setScreen("chat"); setFilter("all"); }}
                 style={{ background:"white", border:"3px solid "+u.color, borderRadius:20, padding:"24px 16px", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:8, boxShadow:"0 8px 32px "+u.color+"44" }}>
                 <div style={{ fontSize:40 }}>{u.emoji}</div>
                 <div style={{ fontWeight:900, fontSize:16, color:u.color }}>{u.name}</div>
@@ -148,7 +161,6 @@ export default function FamilyChat() {
   }
 
   var dmCount = messages.filter(function(m) { return m.to === activeUser; }).length;
-  var shownMessages = filter === "all" ? allVisible : dmVisible;
 
   return (
     <div style={{ fontFamily:"'Nunito',sans-serif", minHeight:"100vh", background:user.bg, display:"flex", flexDirection:"column" }}>
@@ -184,12 +196,15 @@ export default function FamilyChat() {
       )}
 
       <div style={{ flex:1, overflowY:"auto", padding:"16px", display:"flex", flexDirection:"column", gap:10 }}>
-        <div style={{ textAlign:"center", fontSize:11, color:"#bbb", fontWeight:700, marginBottom:4 }}>
-          {filter==="all" ? "— Group messages —" : "— Your direct messages —"}
-        </div>
-
+        {loading && (
+          <div style={{ textAlign:"center", padding:40, color:"#aaa", fontWeight:700 }}>Loading messages... 💬</div>
+        )}
+        {!loading && shownMessages.length === 0 && (
+          <div style={{ textAlign:"center", padding:40, color:"#aaa", fontWeight:700 }}>No messages yet! Say hello 👋</div>
+        )}
         {shownMessages.map(function(msg, i) {
           var sender = USERS.find(function(u) { return u.id === msg.sender; });
+          if (!sender) return null;
           var recipient = msg.to ? USERS.find(function(u) { return u.id === msg.to; }) : null;
           var isMe = msg.sender === activeUser;
           var isDM = !!msg.to;
@@ -204,21 +219,21 @@ export default function FamilyChat() {
                 {showAvatar && !isMe && (
                   <div style={{ fontSize:11, fontWeight:800, color:sender.color, paddingLeft:4 }}>{sender.name}</div>
                 )}
-                {isDM && (
+                {isDM && recipient && (
                   <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:11, fontWeight:800, color:isMe?sender.color:recipient.color, padding:"2px 10px", background:isMe?sender.color+"18":recipient.color+"18", borderRadius:20, border:"1.5px solid "+(isMe?sender.color:recipient.color)+"44", marginBottom:2, alignSelf:isMe?"flex-end":"flex-start" }}>
                     {isMe ? "💌 to "+recipient.emoji+" "+recipient.name : sender.emoji+" "+sender.name+" → 💌 you"}
                   </div>
                 )}
                 <div onClick={function() { setShowEmoji(showEmoji===msg.id ? null : msg.id); }}
-                  style={{ background:isMe?sender.color+"33":"white", border:"2px solid "+(isDM?(isMe?sender.color:recipient.color):sender.color), borderRadius:isMe?"20px 4px 20px 20px":"4px 20px 20px 20px", padding:"10px 14px", cursor:"pointer", boxShadow:"0 2px 10px rgba(0,0,0,0.08)", outline:isDM?"2px dashed "+(isMe?sender.color:recipient.color)+"55":"none", outlineOffset:2 }}>
+                  style={{ background:isMe?sender.color+"33":"white", border:"2px solid "+(isDM&&recipient?(isMe?sender.color:recipient.color):sender.color), borderRadius:isMe?"20px 4px 20px 20px":"4px 20px 20px 20px", padding:"10px 14px", cursor:"pointer", boxShadow:"0 2px 10px rgba(0,0,0,0.08)" }}>
                   {msg.photo && (
                     <img src={msg.photo} alt="shared" style={{ maxWidth:200, maxHeight:200, borderRadius:12, display:"block", marginBottom:msg.text?8:0 }} />
                   )}
                   {msg.isVoice && (
                     <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                      <button onClick={function(e) { e.stopPropagation(); setPlayingVoice(playingVoice===msg.id?null:msg.id); setTimeout(function(){setPlayingVoice(null);}, msg.voiceDuration*1000); }}
+                      <button onClick={function(e) { e.stopPropagation(); setPlayingVoice(playingVoice===msg.id?null:msg.id); setTimeout(function(){setPlayingVoice(null);},msg.voiceDuration*1000); }}
                         style={{ width:32, height:32, borderRadius:"50%", background:sender.color, border:"none", color:"white", cursor:"pointer", fontSize:14 }}>
-                        {playingVoice===msg.id ? "⏸" : "▶"}
+                        {playingVoice===msg.id?"⏸":"▶"}
                       </button>
                       <div style={{ flex:1, height:4, background:sender.color+"33", borderRadius:4, overflow:"hidden" }}>
                         <div style={{ height:"100%", background:sender.color, borderRadius:4, width:playingVoice===msg.id?"100%":"0%", transition:playingVoice===msg.id?"width "+msg.voiceDuration+"s linear":"none" }} />
@@ -231,11 +246,11 @@ export default function FamilyChat() {
                   )}
                 </div>
                 <div style={{ fontSize:10, color:"#bbb", fontWeight:600, padding:"0 4px" }}>{fmt(msg.time)}</div>
-                {Object.keys(msg.reactions).length > 0 && (
+                {msg.reactions && Object.keys(msg.reactions).length > 0 && (
                   <div style={{ display:"flex", gap:4, flexWrap:"wrap", padding:"2px 4px" }}>
                     {Object.entries(msg.reactions).map(function(entry) {
                       var emoji = entry[0]; var users = entry[1];
-                      return users.length > 0 ? (
+                      return users && users.length > 0 ? (
                         <span key={emoji} onClick={function() { toggleReaction(msg.id, emoji); }}
                           style={{ background:"white", border:"2px solid #eee", borderRadius:20, padding:"2px 8px", fontSize:13, cursor:"pointer", fontWeight:700 }}>
                           {emoji} {users.length}
