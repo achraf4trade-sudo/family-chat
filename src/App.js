@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+/* eslint-disable */
+import { useState, useRef, useEffect } from "react";
 import { db } from "./firebase";
 import {
   collection, addDoc, onSnapshot, query, orderBy,
-  serverTimestamp, updateDoc, doc, setDoc, getDoc
+  serverTimestamp, updateDoc, doc, setDoc
 } from "firebase/firestore";
 
 // ── CONSTANTS ────────────────────────────────────────────────────
@@ -51,7 +52,6 @@ const WORDS = ["FAMILY","SMILE","HAPPY","HEART","STARS","GAMES","PIZZA","MUSIC",
 const CARD_EMOJIS = ["🐶","🐱","🦁","🐸","🦋","🌸","⭐","🎮","🍕","🎨","🏆","🌈","🦄","🎵","🐬","🌺"];
 
 const fmt = d => d&&d.toDate ? d.toDate().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}) : new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
-const fmtDate = d => d&&d.toDate ? d.toDate().toLocaleDateString([],{month:"short",day:"numeric"}) : "";
 
 // ── ANIMATED REACTION BURST ──────────────────────────────────────
 function ReactionBurst({ emoji, onDone }) {
@@ -363,10 +363,11 @@ function TicTacToe({activeUser,onClose}) {
   const SIZE=5;
 
   const checkWinner=(b)=>{
-    for(var r=0;r<SIZE;r++) for(var c=0;c<=SIZE-4;c++){var p=b[r*SIZE+c];if(p&&[1,2,3].every(i=>b[r*SIZE+c+i]===p))return p;}
-    for(var c2=0;c2<SIZE;c2++) for(var r2=0;r2<=SIZE-4;r2++){var p2=b[r2*SIZE+c2];if(p2&&[1,2,3].every(i=>b[(r2+i)*SIZE+c2]===p2))return p2;}
-    for(var r3=0;r3<=SIZE-4;r3++) for(var c3=0;c3<=SIZE-4;c3++){var p3=b[r3*SIZE+c3];if(p3&&[1,2,3].every(i=>b[(r3+i)*SIZE+c3+i]===p3))return p3;}
-    for(var r4=3;r4<SIZE;r4++) for(var c4=0;c4<=SIZE-4;c4++){var p4=b[r4*SIZE+c4];if(p4&&[1,2,3].every(i=>b[(r4-i)*SIZE+c4+i]===p4))return p4;}
+    const check=(p,cells)=>p&&cells.every(idx=>b[idx]===p)?p:null;
+    for(let r=0;r<SIZE;r++) for(let c=0;c<=SIZE-4;c++){const p=b[r*SIZE+c];const w=check(p,[1,2,3].map(i=>r*SIZE+c+i));if(w)return w;}
+    for(let c=0;c<SIZE;c++) for(let r=0;r<=SIZE-4;r++){const p=b[r*SIZE+c];const w=check(p,[1,2,3].map(i=>(r+i)*SIZE+c));if(w)return w;}
+    for(let r=0;r<=SIZE-4;r++) for(let c=0;c<=SIZE-4;c++){const p=b[r*SIZE+c];const w=check(p,[1,2,3].map(i=>(r+i)*SIZE+c+i));if(w)return w;}
+    for(let r=3;r<SIZE;r++) for(let c=0;c<=SIZE-4;c++){const p=b[r*SIZE+c];const w=check(p,[1,2,3].map(i=>(r-i)*SIZE+c+i));if(w)return w;}
     if(b.every(Boolean))return "Draw";
     return null;
   };
@@ -1095,7 +1096,6 @@ export default function FamilyChat() {
               var recipient=msg.to?USERS.find(u=>u.id===msg.to):null;
               var isMe=msg.sender===activeUser,isDM=!!msg.to;
               var showAvatar=i===0||shownMessages[i-1].sender!==msg.sender;
-              var replyMsg=msg.replyTo?messages.find(m=>m.id===msg.replyTo.id):null;
               var replyUser=msg.replyTo?USERS.find(u=>u.id===msg.replyTo.sender):null;
 
               return (
