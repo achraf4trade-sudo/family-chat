@@ -319,4 +319,3 @@ export default function FamilyChat() {
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#ddd;border-radius:4px}`}</style>
     </div>
   );
-}npm start
