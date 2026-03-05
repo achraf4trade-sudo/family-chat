@@ -35,19 +35,19 @@ export default function FamilyChat() {
   const [filter, setFilter] = useState("all");
   const [recording, setRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [playingVoice, setPlayingVoice] = useState(null);
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const recordTimerRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const audioRefs = useRef({});
 
   useEffect(() => {
     var q = query(collection(db, "messages"), orderBy("time", "asc"));
     var unsubscribe = onSnapshot(q, function(snapshot) {
       var msgs = [];
-      snapshot.forEach(function(d) {
-        msgs.push(Object.assign({ id: d.id }, d.data()));
-      });
+      snapshot.forEach(function(d) { msgs.push(Object.assign({ id: d.id }, d.data())); });
       setMessages(msgs);
       setLoading(false);
     });
@@ -82,45 +82,65 @@ export default function FamilyChat() {
 
   var shownMessages = filter === "all" ? allVisible : dmVisible;
 
-  var sendMessage = function(text, photo, isVoice, voiceDuration) {
+  var sendMessage = function(text, photo) {
     var t = text !== undefined ? text : input;
     var p = photo !== undefined ? photo : null;
-    var iv = isVoice !== undefined ? isVoice : false;
-    var vd = voiceDuration !== undefined ? voiceDuration : 0;
-    if (!t.trim() && !p && !iv) return;
+    if (!t.trim() && !p) return;
     addDoc(collection(db, "messages"), {
-      sender: activeUser,
-      to: targetUser || null,
-      text: t.trim(),
-      time: serverTimestamp(),
-      reactions: {},
-      photo: p || null,
-      isVoice: iv,
-      voiceDuration: vd
+      sender: activeUser, to: targetUser || null,
+      text: t.trim(), time: serverTimestamp(),
+      reactions: {}, photo: p || null,
+      isVoice: false, audioData: null, voiceDuration: 0
     });
-    setInput("");
-    setShowStickers(false);
-    setTargetUser(null);
+    setInput(""); setShowStickers(false); setTargetUser(null);
   };
 
   var handlePhotoUpload = function(e) {
-    var file = e.target.files[0];
-    if (!file) return;
+    var file = e.target.files[0]; if (!file) return;
     var r = new FileReader();
-    r.onload = function(ev) { sendMessage("", ev.target.result, false, 0); };
+    r.onload = function(ev) { sendMessage("", ev.target.result); };
     r.readAsDataURL(file);
   };
 
-  var handleVoice = function() {
-    if (!recording) { setRecording(true); return; }
-    setRecording(false);
-    var dur = Math.max(recordingTime, 1);
-    addDoc(collection(db, "messages"), {
-      sender: activeUser, to: targetUser || null,
-      text: "", time: serverTimestamp(), reactions: {},
-      photo: null, isVoice: true, voiceDuration: dur
+  var startRecording = function() {
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+      audioChunksRef.current = [];
+      var mr = new MediaRecorder(stream);
+      mediaRecorderRef.current = mr;
+      mr.ondataavailable = function(e) {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      mr.start();
+      setRecording(true);
+    }).catch(function() {
+      alert("Microphone access denied. Please allow microphone in your browser settings.");
     });
-    setTargetUser(null);
+  };
+
+  var stopRecording = function() {
+    if (!mediaRecorderRef.current) return;
+    var dur = Math.max(recordingTime, 1);
+    mediaRecorderRef.current.onstop = function() {
+      var blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        addDoc(collection(db, "messages"), {
+          sender: activeUser, to: targetUser || null,
+          text: "", time: serverTimestamp(), reactions: {},
+          photo: null, isVoice: true,
+          audioData: ev.target.result, voiceDuration: dur
+        });
+        setTargetUser(null);
+      };
+      reader.readAsDataURL(blob);
+      mediaRecorderRef.current.stream.getTracks().forEach(function(t) { t.stop(); });
+    };
+    mediaRecorderRef.current.stop();
+    setRecording(false);
+  };
+
+  var handleVoice = function() {
+    if (!recording) { startRecording(); } else { stopRecording(); }
   };
 
   var toggleReaction = function(msgId, emoji) {
@@ -129,9 +149,9 @@ export default function FamilyChat() {
     var reactors = (msg.reactions && msg.reactions[emoji]) ? msg.reactions[emoji] : [];
     var already = reactors.includes(activeUser);
     var updated = already ? reactors.filter(function(u) { return u !== activeUser; }) : reactors.concat([activeUser]);
-    var newReactions = Object.assign({}, msg.reactions || {});
-    newReactions[emoji] = updated;
-    updateDoc(doc(db, "messages", msgId), { reactions: newReactions });
+    var nr = Object.assign({}, msg.reactions || {});
+    nr[emoji] = updated;
+    updateDoc(doc(db, "messages", msgId), { reactions: nr });
     setShowEmoji(null);
   };
 
@@ -196,12 +216,9 @@ export default function FamilyChat() {
       )}
 
       <div style={{ flex:1, overflowY:"auto", padding:"16px", display:"flex", flexDirection:"column", gap:10 }}>
-        {loading && (
-          <div style={{ textAlign:"center", padding:40, color:"#aaa", fontWeight:700 }}>Loading messages... 💬</div>
-        )}
-        {!loading && shownMessages.length === 0 && (
-          <div style={{ textAlign:"center", padding:40, color:"#aaa", fontWeight:700 }}>No messages yet! Say hello 👋</div>
-        )}
+        {loading && <div style={{ textAlign:"center", padding:40, color:"#aaa", fontWeight:700 }}>Loading messages... 💬</div>}
+        {!loading && shownMessages.length === 0 && <div style={{ textAlign:"center", padding:40, color:"#aaa", fontWeight:700 }}>No messages yet! Say hello 👋</div>}
+
         {shownMessages.map(function(msg, i) {
           var sender = USERS.find(function(u) { return u.id === msg.sender; });
           if (!sender) return null;
@@ -216,42 +233,43 @@ export default function FamilyChat() {
                 {sender.emoji}
               </div>
               <div style={{ maxWidth:"70%", display:"flex", flexDirection:"column", alignItems:isMe?"flex-end":"flex-start", gap:2 }}>
-                {showAvatar && !isMe && (
-                  <div style={{ fontSize:11, fontWeight:800, color:sender.color, paddingLeft:4 }}>{sender.name}</div>
-                )}
+                {showAvatar && !isMe && <div style={{ fontSize:11, fontWeight:800, color:sender.color, paddingLeft:4 }}>{sender.name}</div>}
                 {isDM && recipient && (
                   <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:11, fontWeight:800, color:isMe?sender.color:recipient.color, padding:"2px 10px", background:isMe?sender.color+"18":recipient.color+"18", borderRadius:20, border:"1.5px solid "+(isMe?sender.color:recipient.color)+"44", marginBottom:2, alignSelf:isMe?"flex-end":"flex-start" }}>
                     {isMe ? "💌 to "+recipient.emoji+" "+recipient.name : sender.emoji+" "+sender.name+" → 💌 you"}
                   </div>
                 )}
-                <div onClick={function() { setShowEmoji(showEmoji===msg.id ? null : msg.id); }}
+                <div onClick={function() { setShowEmoji(showEmoji===msg.id?null:msg.id); }}
                   style={{ background:isMe?sender.color+"33":"white", border:"2px solid "+(isDM&&recipient?(isMe?sender.color:recipient.color):sender.color), borderRadius:isMe?"20px 4px 20px 20px":"4px 20px 20px 20px", padding:"10px 14px", cursor:"pointer", boxShadow:"0 2px 10px rgba(0,0,0,0.08)" }}>
-                  {msg.photo && (
-                    <img src={msg.photo} alt="shared" style={{ maxWidth:200, maxHeight:200, borderRadius:12, display:"block", marginBottom:msg.text?8:0 }} />
-                  )}
-                  {msg.isVoice && (
-                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                      <button onClick={function(e) { e.stopPropagation(); setPlayingVoice(playingVoice===msg.id?null:msg.id); setTimeout(function(){setPlayingVoice(null);},msg.voiceDuration*1000); }}
-                        style={{ width:32, height:32, borderRadius:"50%", background:sender.color, border:"none", color:"white", cursor:"pointer", fontSize:14 }}>
-                        {playingVoice===msg.id?"⏸":"▶"}
+                  {msg.photo && <img src={msg.photo} alt="shared" style={{ maxWidth:200, maxHeight:200, borderRadius:12, display:"block", marginBottom:msg.text?8:0 }} />}
+                  {msg.isVoice && msg.audioData && (
+                    <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:180 }}>
+                      <button onClick={function(e) {
+                        e.stopPropagation();
+                        var audio = audioRefs.current[msg.id];
+                        if (audio) { if (audio.paused) { audio.play(); } else { audio.pause(); audio.currentTime=0; } }
+                      }}
+                        style={{ width:36, height:36, borderRadius:"50%", background:sender.color, border:"none", color:"white", cursor:"pointer", fontSize:16, flexShrink:0 }}>
+                        ▶
                       </button>
-                      <div style={{ flex:1, height:4, background:sender.color+"33", borderRadius:4, overflow:"hidden" }}>
-                        <div style={{ height:"100%", background:sender.color, borderRadius:4, width:playingVoice===msg.id?"100%":"0%", transition:playingVoice===msg.id?"width "+msg.voiceDuration+"s linear":"none" }} />
+                      <audio ref={function(el) { audioRefs.current[msg.id]=el; }} src={msg.audioData} style={{ display:"none" }} />
+                      <div style={{ flex:1 }}>
+                        <div style={{ height:4, background:sender.color+"33", borderRadius:4 }}>
+                          <div style={{ height:"100%", width:"40%", background:sender.color, borderRadius:4 }} />
+                        </div>
+                        <div style={{ fontSize:10, color:"#888", marginTop:3, fontWeight:700 }}>{msg.voiceDuration}s</div>
                       </div>
-                      <span style={{ fontSize:11, color:"#888", fontWeight:700 }}>{msg.voiceDuration}s</span>
                     </div>
                   )}
-                  {msg.text && (
-                    <div style={{ fontSize:msg.text.length<=2?(isTablet?48:40):(isTablet?18:15), fontWeight:600, color:"#1e1e1e", lineHeight:1.5 }}>{msg.text}</div>
-                  )}
+                  {msg.text && <div style={{ fontSize:msg.text.length<=2?(isTablet?48:40):(isTablet?18:15), fontWeight:600, color:"#1e1e1e", lineHeight:1.5 }}>{msg.text}</div>}
                 </div>
                 <div style={{ fontSize:10, color:"#bbb", fontWeight:600, padding:"0 4px" }}>{fmt(msg.time)}</div>
                 {msg.reactions && Object.keys(msg.reactions).length > 0 && (
                   <div style={{ display:"flex", gap:4, flexWrap:"wrap", padding:"2px 4px" }}>
                     {Object.entries(msg.reactions).map(function(entry) {
-                      var emoji = entry[0]; var users = entry[1];
-                      return users && users.length > 0 ? (
-                        <span key={emoji} onClick={function() { toggleReaction(msg.id, emoji); }}
+                      var emoji=entry[0]; var users=entry[1];
+                      return users&&users.length>0 ? (
+                        <span key={emoji} onClick={function(){toggleReaction(msg.id,emoji);}}
                           style={{ background:"white", border:"2px solid #eee", borderRadius:20, padding:"2px 8px", fontSize:13, cursor:"pointer", fontWeight:700 }}>
                           {emoji} {users.length}
                         </span>
@@ -262,12 +280,7 @@ export default function FamilyChat() {
                 {showEmoji===msg.id && (
                   <div style={{ display:"flex", gap:4, background:"white", borderRadius:30, padding:"6px 10px", boxShadow:"0 4px 20px rgba(0,0,0,0.15)", border:"2px solid #eee", zIndex:10 }}>
                     {EMOJI_REACTIONS.map(function(e) {
-                      return (
-                        <span key={e} onClick={function() { toggleReaction(msg.id, e); }}
-                          style={{ fontSize:isTablet?26:20, cursor:"pointer", padding:2 }}>
-                          {e}
-                        </span>
-                      );
+                      return <span key={e} onClick={function(){toggleReaction(msg.id,e);}} style={{ fontSize:isTablet?26:20, cursor:"pointer", padding:2 }}>{e}</span>;
                     })}
                   </div>
                 )}
@@ -281,25 +294,20 @@ export default function FamilyChat() {
       {showStickers && (
         <div style={{ background:"white", borderTop:"2px solid #eee", padding:"12px 16px", display:"flex", flexWrap:"wrap", gap:8, maxHeight:130, overflowY:"auto" }}>
           {STICKERS.map(function(s) {
-            return (
-              <span key={s} onClick={function() { sendMessage(s, null, false, 0); }}
-                style={{ fontSize:isTablet?34:26, cursor:"pointer", padding:4, borderRadius:10, background:"#f5f5f5" }}>
-                {s}
-              </span>
-            );
+            return <span key={s} onClick={function(){sendMessage(s);}} style={{ fontSize:isTablet?34:26, cursor:"pointer", padding:4, borderRadius:10, background:"#f5f5f5" }}>{s}</span>;
           })}
         </div>
       )}
 
       <div style={{ background:"white", borderTop:"1px solid #f0f0f0", padding:"8px 16px", display:"flex", alignItems:"center", gap:8, overflowX:"auto" }}>
         <span style={{ fontSize:12, fontWeight:800, color:"#aaa", flexShrink:0 }}>Send to:</span>
-        <button onClick={function() { setTargetUser(null); }}
+        <button onClick={function(){setTargetUser(null);}}
           style={{ flexShrink:0, padding:"5px 12px", borderRadius:20, border:"2px solid "+(!targetUser?user.color:"#ddd"), background:!targetUser?user.color+"18":"white", fontWeight:800, fontSize:12, color:!targetUser?user.color:"#888", cursor:"pointer", fontFamily:"inherit" }}>
           👥 Everyone
         </button>
-        {USERS.filter(function(u) { return u.id !== activeUser; }).map(function(u) {
+        {USERS.filter(function(u){return u.id!==activeUser;}).map(function(u) {
           return (
-            <button key={u.id} onClick={function() { setTargetUser(targetUser===u.id?null:u.id); }}
+            <button key={u.id} onClick={function(){setTargetUser(targetUser===u.id?null:u.id);}}
               style={{ flexShrink:0, display:"flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:20, border:"2px solid "+(targetUser===u.id?u.color:"#ddd"), background:targetUser===u.id?u.color+"18":"white", fontWeight:800, fontSize:12, color:targetUser===u.id?u.color:"#888", cursor:"pointer", fontFamily:"inherit" }}>
               {u.emoji} {u.name}
             </button>
@@ -308,24 +316,24 @@ export default function FamilyChat() {
       </div>
 
       <div style={{ background:"white", borderTop:"2px solid #eee", padding:isTablet?"14px 16px":"10px 14px", display:"flex", alignItems:"center", gap:isTablet?10:8, boxShadow:"0 -4px 20px rgba(0,0,0,0.06)" }}>
-        <button onClick={function() { setShowStickers(!showStickers); }}
+        <button onClick={function(){setShowStickers(!showStickers);}}
           style={{ width:isTablet?48:40, height:isTablet?48:40, borderRadius:"50%", border:"2px solid "+user.color, background:showStickers?user.color+"22":"white", fontSize:isTablet?24:20, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
           🌟
         </button>
-        <button onClick={function() { fileInputRef.current.click(); }}
+        <button onClick={function(){fileInputRef.current.click();}}
           style={{ width:isTablet?48:40, height:isTablet?48:40, borderRadius:"50%", border:"2px solid "+user.color, background:"white", fontSize:isTablet?24:20, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
           📷
         </button>
         <input ref={fileInputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handlePhotoUpload} />
-        <input value={input} onChange={function(e) { setInput(e.target.value); }}
-          onKeyDown={function(e) { if(e.key==="Enter") sendMessage(input, null, false, 0); }}
-          placeholder={targetUser ? "💌 to "+USERS.find(function(u){return u.id===targetUser;}).name+"..." : "Message everyone... 💬"}
+        <input value={input} onChange={function(e){setInput(e.target.value);}}
+          onKeyDown={function(e){if(e.key==="Enter")sendMessage(input);}}
+          placeholder={targetUser?"💌 to "+USERS.find(function(u){return u.id===targetUser;}).name+"...":"Message everyone... 💬"}
           style={{ flex:1, border:"2px solid "+(targetUser?USERS.find(function(u){return u.id===targetUser;}).color:user.color), borderRadius:25, padding:isTablet?"12px 18px":"10px 16px", fontSize:isTablet?17:15, fontFamily:"inherit", fontWeight:600, outline:"none", background:targetUser?USERS.find(function(u){return u.id===targetUser;}).bg:user.bg, color:"#1e1e1e" }} />
         <button onClick={handleVoice}
           style={{ width:isTablet?48:40, height:isTablet?48:40, borderRadius:"50%", border:"2px solid "+(recording?"#EF4444":user.color), background:recording?"#FEE2E2":"white", fontSize:isTablet?24:20, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-          {recording ? "🔴" : "🎙️"}
+          {recording?"🔴":"🎙️"}
         </button>
-        <button onClick={function() { sendMessage(input, null, false, 0); }}
+        <button onClick={function(){sendMessage(input);}}
           style={{ width:isTablet?52:44, height:isTablet?52:44, borderRadius:"50%", background:"linear-gradient(135deg,"+user.color+","+user.color+"aa)", border:"none", fontSize:isTablet?24:20, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"white" }}>
           ➤
         </button>
@@ -338,7 +346,6 @@ export default function FamilyChat() {
           <div style={{ fontSize:12, color:"#888", marginTop:4 }}>Tap the mic again to send</div>
         </div>
       )}
-
       <style>{"@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}"}</style>
     </div>
   );
